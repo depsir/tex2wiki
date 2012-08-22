@@ -1,0 +1,68 @@
+#!/usr/bin/env ruby
+
+require 'net/http'
+require 'uri'
+require 'nokogiri'
+require "optparse"
+
+options = {
+	:inputFile => '',
+	:wikiUrl => '',
+	:user => '',
+	:password => ''}
+
+ARGV.options do |opts|
+	opts.banner = "Usage:  #{File.basename($PROGRAM_NAME)} [OPTIONS] OTHER_ARGS"
+	
+	opts.separator ""
+	opts.separator "Specific Options:"
+	
+	opts.on( "-f File", "--input-file", String,
+	         "File name for the input to process. if the file is not specified stdin will be used instead" ) do |opt|
+		options[:inputFile] = opt
+	end
+	opts.on( "-u Username", "--wiki-username", String,
+	         "Username to access the wiki." ) do |opt|
+		options[:user] = opt
+	end
+	opts.on( "-u Password", "--wiki-username", String,
+	         "Password to access the wiki." ) do |opt|
+		options[:password] = opt
+	end
+
+	opts.on( "-w Wiki", "--wiki-url", String,
+	         "url to the wiki" ) do |opt|
+		options[:wikiUrl] = opt
+		
+	end
+	
+	opts.separator "Common Options:"
+	
+	opts.on( "-h", "--help",
+	         "Show this message." ) do
+		puts opts
+		exit
+	end
+	
+	begin
+		opts.parse!
+	rescue
+		puts opts
+		exit
+	end
+end
+
+if options[:inputFile] == ''
+	puts 'reading from stdin'
+	tex = ARGV
+else
+	tex = File.open(options[:inputFile], "r").read
+end
+
+params = {'fromFormat'=>'LaTeX','toFormat'=>'MediaWiki','textToConvert'=>contents}
+postData = Net::HTTP.post_form(URI.parse('http://johnmacfarlane.net/pandoc/try'), params)
+page = Nokogiri::HTML(postData.body)
+
+mediawiki = page.css('pre').first.content
+
+puts
