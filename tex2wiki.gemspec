@@ -16,5 +16,5 @@ Gem::Specification.new do |gem|
   gem.version       = Tex2wiki::VERSION
 
   gem.add_runtime_dependency 'nokogiri'
-  gem.add_runtime_dependency 'media_wiki'
+  gem.add_runtime_dependency 'mediawiki-gateway'
 end

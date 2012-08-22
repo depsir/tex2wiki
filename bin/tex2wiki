@@ -4,10 +4,11 @@ require 'net/http'
 require 'uri'
 require 'nokogiri'
 require "optparse"
-
+require 'media_wiki'
 options = {
 	:inputFile => '',
 	:wikiUrl => '',
+	:pageTitle => '',
 	:user => '',
 	:password => ''}
 
@@ -21,21 +22,25 @@ ARGV.options do |opts|
 	         "File name for the input to process. if the file is not specified stdin will be used instead" ) do |opt|
 		options[:inputFile] = opt
 	end
-	opts.on( "-u Username", "--wiki-username", String,
+	opts.on( "-n Username", "--wiki-username", String,
 	         "Username to access the wiki." ) do |opt|
 		options[:user] = opt
 	end
-	opts.on( "-u Password", "--wiki-username", String,
+	opts.on( "-p Password", "--wiki-password", String,
 	         "Password to access the wiki." ) do |opt|
 		options[:password] = opt
 	end
 
-	opts.on( "-w Wiki", "--wiki-url", String,
-	         "url to the wiki" ) do |opt|
+	opts.on( "-u Url", "--wiki-api-url", String,
+	         "url to the wiki api.php file" ) do |opt|
 		options[:wikiUrl] = opt
 		
 	end
-	
+	opts.on( "-t Title", "--page-title", String,
+	         "title of the wiki page. it can be of the form title#section. in this case the section section will be replaced by the specified file" ) do |opt|
+		options[:pageTitle] = opt
+		
+	end
 	opts.separator "Common Options:"
 	
 	opts.on( "-h", "--help",
@@ -51,18 +56,45 @@ ARGV.options do |opts|
 		exit
 	end
 end
+# tex = ""
+# if options[:inputFile] == ''
+# 	puts 'reading from stdin'
+# 	while a = gets
+# 	  tex << a
+# 	end
 
-if options[:inputFile] == ''
-	puts 'reading from stdin'
-	tex = ARGV
-else
-	tex = File.open(options[:inputFile], "r").read
-end
+# 	puts tex
+# else
+# 	tex = File.open(options[:inputFile], "r").read
+# end
+tex = File.open(options[:inputFile], "r").read
 
-params = {'fromFormat'=>'LaTeX','toFormat'=>'MediaWiki','textToConvert'=>contents}
+
+params = {'fromFormat'=>'LaTeX','toFormat'=>'MediaWiki','textToConvert'=>tex}
 postData = Net::HTTP.post_form(URI.parse('http://johnmacfarlane.net/pandoc/try'), params)
 page = Nokogiri::HTML(postData.body)
 
 mediawiki = page.css('pre').first.content
 
-puts
+mw = MediaWiki::Gateway.new(options[:wikiUrl])
+
+content = ""
+if options[:pageTitle].index('#')
+	section = options[:pageTitle][options[:pageTitle].index('#')+1..-1]
+	options[:pageTitle] = options[:pageTitle][0...options[:pageTitle].index('#')]
+	content = mw.get(options[:pageTitle])
+	# need to parse the content to replace the specified section with the new one
+	section_start_index = content.index(/(=+) *#{section} *\1/)
+	section_level = content[section_start_index..section_start_index+20].index(/[^=]/)
+	end_title_index = section_start_index+content[section_start_index+section_level..-1].index('=')+section_level*2
+ 	section_end_index = content.index(/={1,#{section_level}}[^=]/,end_title_index) || content.length+1
+ 	mediawiki.gsub!(/(=+)/,"\\1#{'='*(section_level-1)}")
+ 	content[section_start_index...section_end_index]=mediawiki
+
+else
+	content = mediawiki
+end
+
+
+mw.login(options[:user],options[:password])
+mw.edit(options[:pageTitle], content)
